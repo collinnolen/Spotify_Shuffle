@@ -1,16 +1,164 @@
-var express = require('express');
-var router = express.Router();
-const createSpotify = require('node-spotify-api');
+const express = require('express');
+const router = express.Router();
+const request = require('request');
+const querystring = require('querystring');
+const spotify = require('spotify-web-api-node');
+
+// Middleware
+const Auth = require('../middleware/authenticated.js');
+
+// Modules
+const Util = require('../modules/util.js');
+const sApi = require('../modules/spotifyApiCalls.js');
+
+let stateKey = 'spotify_auth_state'
+
+let scopes = ['playlist-modify', 'playlist-read-private', 'playlist-modify-public', 'playlist-modify-private', 'playlist-read-collaborative'],
+  redirectUri = process.env.SPOTIFY_REDIRECTURI,
+  clientId = process.env.SPOTIFY_CLIENTID,
+  clientSecret = process.env.SPOTIFY_SECRET,
+  state = Util.generateRandomString(16);
+
+ let spotifyApi = new spotify({
+  redirectUri : redirectUri,
+  clientId: clientId,
+  clientSecret: clientSecret
+});
+
+let authorizeURL = spotifyApi.createAuthorizeURL(scopes, state);
+
+router.get('/', Auth.loggedIn, function(req, res, next) {
+  spotifyApi.getUserPlaylists(req.session.user_id)
+    .then(function(value){
+      res.render('index', {user_id:req.session.user_id, playlists: value.body.items});
+    })
+    .catch(function(err){
+      console.log(err);
+    });
+});
+
+router.get('/shuffle', Auth.loggedIn, function(req, res){
+  if(!req.query.uri)
+    return res.send('failed');
+
+  let previousPlaylistId = (req.query.previous) ? req.query.previous : null;
+  let uri = req.query.uri;
+
+  let playlist_user_id = uri.substring(uri.indexOf('user:')+ 5, uri.indexOf(':playlist'));
+  let playlist_id = uri.substring(uri.indexOf('playlist:')+ 9, uri.length);
+
+  if(playlist_user_id.length < 1 || playlist_id.length  < 1)
+  return res.send('failed');
+
+  let Tracks = [];
+  let token = req.session.user_access;
+  let currentUserId = req.session.user_id;
+
+  sApi.getPlaylistTracks(playlist_user_id, playlist_id, token)
+  .then(function(tracks){
+    // shuffle tracks
+    return Util.fisher_yates_shuffle(tracks);
+  })
+  .then(function(shuffledTracks){
+    // stores shuffledTracks then creates playlist
+    Tracks = shuffledTracks;
+    return sApi.createPlaylist(currentUserId, 'Shuffle:' + Util.generateRandomString(5), token);
+  })
+  .then(function(newPlaylist){
+    //gets newly created playlist id then adds the previously shuffled tracks
+    let newPlaylist_id = newPlaylist.id;
+    return sApi.addTracksToPlaylist(currentUserId, newPlaylist_id, Tracks, token);
+  })
+  .then(function(uri){
+    // successfully added tracks, returns uri of the new playlist
+    res.send(uri);
+
+    // if there was a previous shuffled playlist delete it.
+    if(previousPlaylistId)
+      sApi.deletePlaylist(currentUserId, previousPlaylistId, token)
+        .catch(function(error){
+          console.log(error);
+        });
+  })
+  .catch(function(error){
+    // Something failed.
+    res.send('failed');
+  });
+});
+
+router.get('/login', function(req, res){
+  res.render('login');
+});
+
+router.get('/authorize', function(req, res){
+  res.cookie(stateKey, state);
+
+  res.redirect('https://accounts.spotify.com/authorize?' +
+    querystring.stringify({
+      response_type: 'code',
+      client_id: clientId,
+      scope: scopes,
+      redirect_uri : redirectUri,
+      state: state
+    }));
+});
+
+router.get('/callback', function(req, res){
+
+  // your application requests refresh and access tokens
+  // after checking the state parameter
+
+  var code = req.query.code || null;
+  var state = req.query.state || null;
+  var storedState = req.cookies ? req.cookies[stateKey] : null;
+
+  if (state === null || state !== storedState) {
+    res.redirect('/#' +
+      querystring.stringify({
+        error: 'state_mismatch'
+      }));
+  } else {
+    res.clearCookie(stateKey);
+    var authOptions = {
+      url: 'https://accounts.spotify.com/api/token',
+      form: {
+        code: code,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code'
+      },
+      headers: {
+        'Authorization': 'Basic ' + (new Buffer(clientId + ':' + clientSecret).toString('base64'))
+      },
+      json: true
+    };
+
+    request.post(authOptions, function(error, response, body) {
+      if (!error && response.statusCode === 200) {
+
+        var access_token = body.access_token,
+            refresh_token = body.refresh_token;
+
+        req.session.user_access = access_token;
+
+          spotifyApi.setAccessToken(access_token);
+          spotifyApi.setRefreshToken(refresh_token);
 
 
-  //id: '842be580594b40d191b22c3d646b4dc4',
-  //secret: '0cbe3e6237844584b17b58cbdb76ff2e'
 
+        var options = {
+          url: 'https://api.spotify.com/v1/me',
+          headers: { 'Authorization': 'Bearer ' + access_token },
+          json: true
+        };
 
-
-/* GET home page. */
-router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Express' });
+        // use the access token to access the Spotify Web API
+        request.get(options, function(error, response, body) {
+          req.session.user_id = body.id;
+          res.redirect('/');
+        });
+       }
+    });
+   }
 });
 
 module.exports = router;

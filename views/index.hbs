@@ -1,4 +1,15 @@
-<h1>{{title}}</h1>
-<p>Welcome to {{title}}</p>
+<div class="col-10-md">
+  <div class="" id="user-playlists">
+    <h1>Choose a playlist to shuffle</h1>
+    <ul class="list-group list-group-flush" id="playlist-list">
+      {{#each playlists}}
+      <li class="list-group-item"><a href="#" class="clicker" data-track-size="{{tracks.length}}" data-uri="{{uri}}">{{name}}</a></li>
+      {{/each}}
+    </ul>
+  </div>
 
-<iframe src="https://open.spotify.com/embed?uri=spotify:user:spotify:playlist:3rgsDhGHZxZ9sB9DQWQfuf" width="1000" height="1380" frameborder="0" allowtransparency="true"></iframe>
+  <div class="now-playing hidden">
+    <a id="switch" href="#" class="btn btn-success button-style">Switch Playlist</a>
+    <iframe id="iframe" src="" width="" height="" frameborder="0" align="middle" allowtransparency="true"></iframe>
+  </div>
+</div>

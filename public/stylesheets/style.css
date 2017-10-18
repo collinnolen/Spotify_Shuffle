@@ -1,8 +1,71 @@
+@media screen and (min-width: 48em) {
+  .container{
+    width: 50%;
+  }
+}
+
 body {
+  text-align:center;
   padding: 50px;
   font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+  color: #ecebe8;
+  background-color: #191414;
 }
+
 
 a {
   color: #00B7FF;
+}
+
+.list-group-item a{
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ecebe8;
+}
+
+#user-playlists{
+  margin: auto;
+  width: 80%;
+}
+
+.now-playing a{
+  margin-bottom: 2rem;
+}
+
+.now-playing{
+  margin: auto;
+  width: 80%;
+}
+
+#playlist-list{
+  max-height: 500px;
+  width: auto;
+  overflow:auto;
+}
+
+.card{
+  background-color:#404040;
+}
+
+.list-group-item:hover{
+  background-color: #404040;
+}
+
+.list-group-item{
+  padding: 30px;
+  background-color: rgba(0,0,0,.7)
+}
+
+.button-style{
+  background-color : #84bd00;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.login{
+  text-align:center;
+}
+
+.hidden{
+  display: none;
 }
