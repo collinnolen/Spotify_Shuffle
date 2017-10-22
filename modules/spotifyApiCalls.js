@@ -1,29 +1,60 @@
 const request = require('request');
 
+function combineArrays(arrayOne, arrayTwo){
+  for(let i = 0; i < arrayTwo.length; i++){
+    arrayOne.push(arrayTwo[i]);
+  }
+  console.log(arrayOne + ' ' + arrayTwo + ' < array two')
+  return arrayOne;
+}
+
+function _deletePlaylist(user_id, playlist_id, access){
+  return new Promise(function(resolve, reject){
+    var options = {
+      url: 'https://api.spotify.com/v1/users/' + user_id + '/playlists/' + playlist_id + '/followers',
+      headers: {
+        'Authorization': 'Bearer ' + access,
+      },
+      json: true
+    };
+
+    request.delete(options, function(error, response, body) {
+      if(!error && response.statusCode === 200){
+        resolve('success');
+      }
+      else
+        reject('DeletePlaylist'  + response.statusCode);
+    });
+  });
+}
 
 module.exports = {
 
-  getPlaylistTracks: function(user_id, playlist_id, access){
+  getPlaylistTracks: function(user_id, playlist_id, query, access){
     return new Promise(function(resolve, reject){
-      var options = {
-        url: 'https://api.spotify.com/v1/users/' + user_id +'/playlists/' + playlist_id + '/tracks',
+      let offset = (query)? query : ''
+      let _url = 'https://api.spotify.com/v1/users/' + user_id +'/playlists/' + playlist_id + '/tracks' + offset
+      let tracks = [];
+
+      let options = {
+        url: _url,
         headers: { 'Authorization': 'Bearer ' + access },
         json: true
       };
 
-      // use the access token to access the Spotify Web API
+      _url = '';
+
       request.get(options, function(error, response, body) {
         if (!error && response.statusCode === 200) {
-          let trackUris = [];
-
           for(let i = 0; i < body.items.length; i++){
-            trackUris.push(body.items[i].track.uri)
+            tracks.push(body.items[i].track.uri);
           }
-
-          resolve(trackUris);
+          let obj = {tracks: tracks, url: body.next}
+          resolve(obj);
         }
-
-        reject(response.error, response.statusCode);
+        else{
+          reject('getPlaylistTracks ' + response.statusCode);
+        }
       });
     });
   },
@@ -44,7 +75,8 @@ module.exports = {
         if (!error && response.statusCode === 200 || response.statusCode === 201) {
           resolve(body)
         }
-        reject(response.error, response.statusCode);
+        else
+          reject('CreatePlaylist'  + response.statusCode);
       });
     });
   },
@@ -65,19 +97,25 @@ module.exports = {
         if(!error && response.statusCode === 201){
           resolve('spotify:user:'+ user_id + ':playlist:' + playlist_id);
         }
-        reject(response.error, response.statusCode);
+        else
+          reject('AddTracksToPlaylist'  + response.statusCode);
       });
     });
   },
 
   deletePlaylist: function(user_id , playlist_id, access){
+    return(_deletePlaylist(user_id , playlist_id, access));
+  },
+
+  removeTracks: function(user_id, playlist_id, tracks, access){
     return new Promise(function(resolve, reject){
       var options = {
-        url: 'https://api.spotify.com/v1/users/' + user_id + '/playlists/' + playlist_id + '/followers',
+        url: 'https://api.spotify.com/v1/users/' + user_id + '/playlists/' + playlist_id + '/tracks',
         headers: {
           'Authorization': 'Bearer ' + access,
           'Content-Type': 'application/json',
         },
+        body: {'tracks': tracks},
         json: true
       };
 
@@ -85,12 +123,45 @@ module.exports = {
         if(!error && response.statusCode === 200){
           resolve('success');
         }
-        reject(response.error, response.statusCode);
+        else
+          reject('RemoveTracks'  + response.statusCode);
       });
     });
   },
 
-  reshufflePlaylist: function(){
+  getPlaylists: function(user_id, access){
+    return new Promise(function(resolve, reject){
+      var options = {
+        url: 'https://api.spotify.com/v1/users/' + user_id + '/playlists',
+        headers: {
+          'Authorization': 'Bearer ' + access,
+        },
+        json: true
+      };
 
+      request.get(options, function(error, response, body) {
+        if(!error && response.statusCode === 200){
+          resolve(body);
+        }
+        else
+          reject('GetPlaylists'  + response.statusCode);
+      });
+    });
+  },
+
+  deleteMultiplePlaylists: function(user_id, playlists, access){
+    return new Promise(function(resolve, reject){
+      for(let i = 0; i < playlists.length; i++){
+
+        _deletePlaylist(user_id, playlists[i], access)
+          .then(function(success){
+            console.log(success)
+          })
+          .catch(function(error){
+            console.log(error);
+          });
+      }
+      resolve('Success');
+    });
   }
 }

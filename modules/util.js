@@ -12,19 +12,23 @@ module.exports = {
   },
 
   fisher_yates_shuffle : function(array){
-    let m = array.length, t, i;
+    return new Promise(function(resolve, reject){
+      if(!array.length || array.length < 1)
+        return reject('Nothing in array');
 
-    while(m){
-      //Generation random element
-      i = Math.floor(Math.random() * m--);
+      let m = array.length, t, i;
 
-      // Swap with current
-      t = array[m];
-      array[m] = array[i];
-      array[i] = t;
-    }
+      while(m){
+        //Generation random element
+        i = Math.floor(Math.random() * m--);
 
-    return array;
+        // Swap with current
+        t = array[m];
+        array[m] = array[i];
+        array[i] = t;
+      }
+
+      resolve(array);
+    });
   }
-
 }

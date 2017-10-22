@@ -6,6 +6,7 @@ const spotify = require('spotify-web-api-node');
 
 // Middleware
 const Auth = require('../middleware/authenticated.js');
+const queryCheck = require('../middleware/queryCheck.js');
 
 // Modules
 const Util = require('../modules/util.js');
@@ -37,10 +38,7 @@ router.get('/', Auth.loggedIn, function(req, res, next) {
     });
 });
 
-router.get('/shuffle', Auth.loggedIn, function(req, res){
-  if(!req.query.uri)
-    return res.send('failed');
-
+router.get('/shuffle', Auth.loggedIn, queryCheck.checkForUri, function(req, res){
   let previousPlaylistId = (req.query.previous) ? req.query.previous : null;
   let uri = req.query.uri;
 
@@ -54,10 +52,9 @@ router.get('/shuffle', Auth.loggedIn, function(req, res){
   let token = req.session.user_access;
   let currentUserId = req.session.user_id;
 
-  sApi.getPlaylistTracks(playlist_user_id, playlist_id, token)
-  .then(function(tracks){
-    // shuffle tracks
-    return Util.fisher_yates_shuffle(tracks);
+  sApi.getPlaylistTracks(playlist_user_id, playlist_id, null, token)
+  .then(function(trackObj){
+    return Util.fisher_yates_shuffle(trackObj.tracks);
   })
   .then(function(shuffledTracks){
     // stores shuffledTracks then creates playlist
@@ -81,9 +78,72 @@ router.get('/shuffle', Auth.loggedIn, function(req, res){
         });
   })
   .catch(function(error){
-    // Something failed.
+    console.log(error);
     res.send('failed');
   });
+});
+
+router.delete('/shuffle', Auth.loggedIn, function(req, res){
+  let user_id = req.session.user_id,
+    token = req.session.user_access;
+  sApi.getPlaylists(user_id, token)
+    .then(function(playlists){
+      let playlistsToRemove = [];
+
+      for(let i = 0; i < playlists.items.length; i++){
+        let playlist = playlists.items[i]
+        if(playlist.name.indexOf('Shuffle:') === 0 && playlist.name.length === 13)
+          playlistsToRemove.push(playlist.id);
+      }
+
+      return sApi.deleteMultiplePlaylists(user_id, playlistsToRemove, token);
+    }).then(function(message){
+      res.send('success')
+      console.log(message);
+    })
+    .catch(function(error){
+      res.send('failed');
+      console.log(error);
+    })
+});
+
+router.get('/reshuffle', Auth.loggedIn, queryCheck.checkForUri, function(req, res){
+  let uri = req.query.uri;
+
+  let playlist_user_id = uri.substring(uri.indexOf('user:')+ 5, uri.indexOf(':playlist'));
+  let playlist_id = uri.substring(uri.indexOf('playlist:')+ 9, uri.length);
+
+  if(playlist_user_id.length < 1 || playlist_id.length  < 1)
+    return res.send('failed');
+
+  let Tracks = [];
+  let token = req.session.user_access;
+  let currentUserId = req.session.user_id;
+  // sApi calls are failing
+
+
+  sApi.getPlaylistTracks(playlist_user_id, playlist_id, null, token)
+    .then(function(tracks){
+       return Util.fisher_yates_shuffle(tracks.tracks);
+    })
+    .then(function(shuffledTracks){
+      // stores shuffledTracks then creates playlist
+      Tracks = shuffledTracks;
+      return sApi.createPlaylist(currentUserId, 'Shuffle:' + Util.generateRandomString(5), token);
+    })
+    .then(function(newPlaylist){
+      //gets newly created playlist id then adds the previously shuffled tracks
+      let newPlaylist_id = newPlaylist.id;
+      return sApi.addTracksToPlaylist(currentUserId, newPlaylist_id, Tracks, token);
+    })
+    .then(function(uri){
+      res.send(uri);
+      return sApi.deletePlaylist(currentUserId, playlist_id, token);
+    })
+    .catch(function(error){
+      console.log(error);
+      res.send('failed');
+    })
 });
 
 router.get('/login', function(req, res){

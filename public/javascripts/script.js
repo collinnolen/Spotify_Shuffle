@@ -17,6 +17,7 @@ $(document).ready(function() {
           swapIframe(data);
           swapVisable('#user-playlists', '.now-playing');
         }
+        else console.log(data);
       },
       error: function(error){
         console.log(error)
@@ -28,6 +29,40 @@ $(document).ready(function() {
     let uri = $('iframe').attr('src');
     previousPlaylistId = uri.substring(uri.indexOf('playlist:')+ 9, uri.length);
     swapVisable('.now-playing','#user-playlists');
+  });
+
+  $('#deleteShuffles').click(function(event){
+    $.ajax({
+      type: "DELETE",
+      url: "/shuffle",
+        success: function(data){
+          console.log(data);
+        },
+        error: function(data){
+          console.log(data);
+        }
+    })
+  });
+
+  $('#reshuffle').click(function(event){
+    let url = $('iframe').attr('src');
+    let uri = url.substring(url.indexOf('spotify:'), url.length);
+
+    $.ajax({
+      type: "GET",
+      url: "/reshuffle" + '?uri=' +  uri,
+        success: function(data){
+          if(data != 'failed'){
+            $('iframe').attr('src', 'https://open.spotify.com/embed?uri=' + data);
+          }
+          else{
+            console.log('failed')
+          }
+        },
+        error: function(error){
+          console.log(error);
+        }
+    })
   });
 
   function swapIframe(uri){
