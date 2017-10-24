@@ -6,6 +6,9 @@ const logger = require('morgan');
 const cookieParser = require('cookie-parser');
 const bodyParser = require('body-parser');
 const session = require('express-session');
+const Mongoose = require('mongoose');
+Mongoose.connect(process.env.DATABASE_STRING, {useMongoClient: true});
+const MongoStore = require('connect-mongo')(session);
 
 
 const index = require('./routes/index');
@@ -30,7 +33,8 @@ app.use(session({
   duration: 30 * 60 * 1000,
   acticeDuration: 5 * 50 * 1000,
   resave : true,
-  saveUninitialized: false
+  saveUninitialized: false,
+  store: new MongoStore({mongooseConnection : Mongoose.connection})
 }));
 
 app.use(function(req, res, next){
