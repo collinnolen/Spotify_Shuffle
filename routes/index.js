@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const request = require('request');
 const querystring = require('querystring');
-const spotify = require('spotify-web-api-node');
 
 // Middleware
 const Auth = require('../middleware/authenticated.js');
@@ -20,21 +19,16 @@ let scopes = ['playlist-modify', 'playlist-read-private', 'playlist-modify-publi
   clientSecret = process.env.SPOTIFY_SECRET,
   state = Util.generateRandomString(16);
 
- let spotifyApi = new spotify({
-  redirectUri : redirectUri,
-  clientId: clientId,
-  clientSecret: clientSecret
-});
-
-let authorizeURL = spotifyApi.createAuthorizeURL(scopes, state);
-
 router.get('/', Auth.loggedIn, function(req, res, next) {
-  spotifyApi.getUserPlaylists(req.session.user_id)
+  sApi.getPlaylists(req.session.user_id, req.session.user_access)
     .then(function(value){
-      res.render('index', {user_id:req.session.user_id, playlists: value.body.items});
+      res.render('index', {user_id:req.session.user_id, playlists: value.items});
     })
     .catch(function(err){
-      console.log(err);
+      if(err === 401){
+        console.log('401 error');
+        res.redirect('/refresh');
+      }
     });
 });
 
@@ -164,7 +158,6 @@ router.get('/authorize', function(req, res){
 });
 
 router.get('/callback', function(req, res){
-
   // your application requests refresh and access tokens
   // after checking the state parameter
 
@@ -199,11 +192,7 @@ router.get('/callback', function(req, res){
             refresh_token = body.refresh_token;
 
         req.session.user_access = access_token;
-
-          spotifyApi.setAccessToken(access_token);
-          spotifyApi.setRefreshToken(refresh_token);
-
-
+        req.session.user_refresh = refresh_token;
 
         var options = {
           url: 'https://api.spotify.com/v1/me',
@@ -219,6 +208,28 @@ router.get('/callback', function(req, res){
        }
     });
    }
+});
+
+router.get('/refresh', Auth.loggedIn, function(req, res){
+
+  // requesting access token from refresh token
+  let refresh_token = req.session.user_refresh;
+  let authOptions = {
+    url: 'https://accounts.spotify.com/api/token',
+    headers: { 'Authorization': 'Basic ' + (new Buffer(client_id + ':' + client_secret).toString('base64')) },
+    form: {
+      grant_type: 'refresh_token',
+      refresh_token: refresh_token
+    },
+    json: true
+  };
+
+  request.post(authOptions, function(error, response, body) {
+    if (!error && response.statusCode === 200) {
+      req.session.user_access = body.access_token;
+      res.redirect('/');
+    }
+  });
 });
 
 module.exports = router;
